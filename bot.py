@@ -7,7 +7,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
-TOKEN = "8802204413:AAHVhQD3AeFez5X3mYyzNWlYO0l166buaWM"
+TOKEN = "8802204413:AAFd6Y8obiROqD3DZ_H0XsAD3ynR8zcjDZ4"
 BANNER_URL = "https://i.imgur.com/vHExT2V.png" 
 
 bot = Bot(token=TOKEN)
@@ -54,7 +54,7 @@ class RequisitesUpdate(StatesGroup):
 def get_main_caption():
     return (
         "Добро пожаловать 👋\n\n"
-        "🟢 **PlayerOk** — специализированный сервис по обеспечению безопасности внебиржевых сделок.\n\n"
+        "🟢 **PlayerOk** — специализированный сервис по обеспечение безопасности внебиржевых сделок.\n\n"
         "🥇 **Автоматизированный алгоритм исполнения.**\n"
         "🚀 **Скорость и автоматизация.**\n"
         "💳 **Удобный и быстрый вывод средств.**\n\n"
