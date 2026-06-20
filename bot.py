@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import sqlite3
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -16,13 +17,24 @@ class OrderStates(StatesGroup):
     choosing_method = State()
     choosing_currency = State()
     entering_data = State()
+    waiting_for_wallet = State() # Новое состояние
+
+def init_db():
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER PRIMARY KEY,
+            username TEXT,
+            card_requisites TEXT DEFAULT 'Не указаны',
+            wallet_address TEXT DEFAULT 'Не указан'
+        )
+    """)
+    conn.commit()
+    conn.close()
 
 def get_main_caption():
-    return (
-        "Добро пожаловать 👋\n\n"
-        "🟢 **PlayerOk** — специализированный сервис по обеспечение безопасности внебиржевых сделок.\n\n"
-        "🛡 Выберите нужный раздел ниже:"
-    )
+    return "Добро пожаловать 👋\n\n🟢 **PlayerOk** — безопасные сделки.\n\n🛡 Выберите раздел:"
 
 def get_playerok_menu():
     builder = InlineKeyboardBuilder()
@@ -35,14 +47,9 @@ def get_playerok_menu():
 async def cmd_start(message: types.Message):
     await message.answer_photo(photo=BANNER_URL, caption=get_main_caption(), reply_markup=get_playerok_menu(), parse_mode="Markdown")
 
-@dp.callback_query(F.data == "to_main_menu")
-async def to_main_menu(call: types.CallbackQuery, state: FSMContext):
-    await state.clear()
-    await call.message.edit_caption(caption=get_main_caption(), reply_markup=get_playerok_menu(), parse_mode="Markdown")
-
 @dp.callback_query(F.data == "main_create")
 async def create_order(call: types.CallbackQuery, state: FSMContext):
-    text = "🔒 **Создание ордера**\n\n> *Выберите способ оплаты со стороны покупателя*"
+    text = "🔒 **Создание ордера**\n\n> *Выберите способ оплаты*"
     builder = InlineKeyboardBuilder()
     builder.button(text="🔹 TON", callback_data="method_ton")
     builder.button(text="🔹 USDT (TON)", callback_data="method_usdt")
@@ -53,33 +60,29 @@ async def create_order(call: types.CallbackQuery, state: FSMContext):
     await call.message.edit_caption(caption=text, reply_markup=builder.as_markup(), parse_mode="Markdown")
     await state.set_state(OrderStates.choosing_method)
 
-@dp.callback_query(F.data == "method_ton")
-async def method_ton(call: types.CallbackQuery):
-    text = "⚠️ **TON-кошелёк не привязан**\n\n*Добавьте его в разделе «Кошельки»*"
+@dp.callback_query(F.data.in_(["method_ton", "method_usdt"]))
+async def request_wallet(call: types.CallbackQuery, state: FSMContext):
+    text = "📥 **Введите ваш TON-кошелек**\n\nПожалуйста, отправьте адрес вашего кошелька в ответ на это сообщение."
     builder = InlineKeyboardBuilder()
     builder.button(text="◀️ Назад", callback_data="main_create")
     await call.message.edit_caption(caption=text, reply_markup=builder.as_markup(), parse_mode="Markdown")
+    await state.set_state(OrderStates.waiting_for_wallet)
 
-@dp.callback_query(F.data.in_(["method_card", "method_usdt"]))
-async def choose_currency(call: types.CallbackQuery, state: FSMContext):
-    text = "💳 **Валюта ордера**\n\n> *Выберите валюту*"
-    builder = InlineKeyboardBuilder()
-    for cur in ["RUB", "USD", "EUR", "UAH", "KZT", "BYN", "UZS"]:
-        builder.button(text=cur, callback_data=f"final_currency")
-    builder.button(text="◀️ Назад", callback_data="main_create")
-    builder.adjust(2, 2, 2, 1, 1)
-    await call.message.edit_caption(caption=text, reply_markup=builder.as_markup(), parse_mode="Markdown")
-    await state.set_state(OrderStates.choosing_currency)
-
-@dp.callback_query(F.data == "method_stars")
-async def method_stars(call: types.CallbackQuery, state: FSMContext):
-    text = "⭐ **Получатель звёзд**\n\n*Укажите @username получателя*\n\n> *Минимум: 100 звёзд*"
-    builder = InlineKeyboardBuilder()
-    builder.button(text="◀️ Назад", callback_data="main_create")
-    await call.message.edit_caption(caption=text, reply_markup=builder.as_markup(), parse_mode="Markdown")
-    await state.set_state(OrderStates.entering_data)
+@dp.message(OrderStates.waiting_for_wallet)
+async def save_wallet(message: types.Message, state: FSMContext):
+    wallet = message.text
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET wallet_address = ? WHERE user_id = ?", (wallet, message.from_user.id))
+    conn.commit()
+    conn.close()
+    await message.answer("✅ **Кошелек успешно привязан!**")
+    await state.clear()
+    # Возвращаем в главное меню
+    await message.answer_photo(photo=BANNER_URL, caption=get_main_caption(), reply_markup=get_playerok_menu(), parse_mode="Markdown")
 
 async def main():
+    init_db()
     logging.basicConfig(level=logging.INFO)
     await dp.start_polling(bot)
 
