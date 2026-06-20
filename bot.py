@@ -4,7 +4,7 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.filters import CommandStart
 from aiogram.utils.keyboard import ReplyKeyboardBuilder, InlineKeyboardBuilder
 
-TOKEN = "8802204413:AAF2gvelPL6PW3kfROvMcNailqX3sx0GrgI"
+TOKEN = "8802204413:AAEuXzZXSnUYqdv6I-hExGd100yQeIm0lCk"
 
 dp = Dispatcher()
 
