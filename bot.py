@@ -7,8 +7,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
-# ЗАМЕНИ ЭТОТ ТОКЕН НА РАБОЧИЙ В @BotFather
-TOKEN = "СЮДА_ВСТАВЬ_НОВЫЙ_ТОКЕН_ИЗ_BOTFATHER"
+TOKEN = "8802204413:AAF2gvelPL6PW3kfROvMcNailqX3sx0GrgI"
 BANNER_URL = "https://i.imgur.com/vHExT2V.png" 
 
 bot = Bot(token=TOKEN)
@@ -113,7 +112,10 @@ async def to_main_menu(call: types.CallbackQuery, state: FSMContext):
         try:
             await call.message.answer_photo(photo=BANNER_URL, caption=get_main_caption(), reply_markup=get_playerok_menu(), parse_mode="Markdown")
         except Exception:
-            await message.answer(get_main_caption(), reply_markup=get_playerok_menu(), parse_mode="Markdown")
+            try:
+                await call.message.answer(get_main_caption(), reply_markup=get_playerok_menu(), parse_mode="Markdown")
+            except Exception:
+                pass
     try:
         await call.answer()
     except Exception:
@@ -227,7 +229,7 @@ async def process_entering_card(message: types.Message, state: FSMContext):
     new_req = message.text
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
-    cursor.execute("UPDATE users SET card_requisites = ? WHERE user_id = ?", (message.from_user.id, new_req))
+    cursor.execute("UPDATE users SET card_requisites = ? WHERE user_id = ?", (new_req, message.from_user.id))
     conn.commit()
     conn.close()
     await state.clear()
@@ -263,7 +265,7 @@ async def process_entering_card(message: types.Message, state: FSMContext):
 async def press_security(call: types.CallbackQuery):
     text = (
         "🔔 **Безопасность сделок на PlayerOk:**\n\n"
-        "1. При создании ордера средства покупателя замораживаются на специальном гарант-счете.\n"
+        "1. При создании ордера средства покупателя замораются на специальном гарант-счете.\n"
         "2. Продавец получает уведомление и передает товар/услугу.\n"
         "3. Деньги переводятся продавцу только после того, как покупатель лично подтвердит успешное выполнение сделки.\n\n"
         "🔒 Все ваши данные зашифрованы протоколом защиты данных Escrow."
@@ -285,7 +287,7 @@ async def press_ref(call: types.CallbackQuery):
     ref_link = f"https://t.me/{(await bot.get_me()).username}?start={call.from_user.id}"
     text = (
         "💙 **Реферальная программа PlayerOk**\n\n"
-        "Приглашайте друзей и получайте **0.5%** от суммы каждой их успешной сделки на свой баланс!\n\n"
+        "Приглашайте друзей и получаете **0.5%** от суммы каждой их успешной сделки на свой баланс!\n\n"
         "🔗 **Ваша пригласительная ссылка:**\n"
         f"`{ref_link}`\n\n"
         "Количество ваших рефералов: **0**\n"
