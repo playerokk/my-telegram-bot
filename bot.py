@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import sqlite3
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -22,12 +21,6 @@ def get_main_caption():
     return (
         "Добро пожаловать 👋\n\n"
         "🟢 **PlayerOk** — специализированный сервис по обеспечение безопасности внебиржевых сделок.\n\n"
-        "🥇 **Автоматизированный алгоритм исполнения.**\n"
-        "🚀 **Скорость и автоматизация.**\n"
-        "💳 **Удобный и быстрый вывод средств.**\n\n"
-        "• Комиссия сервиса: **1%**\n"
-        "• Режим работы: **24/7**\n"
-        "• Поддержка: @PlayerokEscrow\n\n"
         "🛡 Выберите нужный раздел ниже:"
     )
 
@@ -35,12 +28,7 @@ def get_playerok_menu():
     builder = InlineKeyboardBuilder()
     builder.button(text="🔹 Создать ордер", callback_data="main_create")
     builder.button(text="📘 Кошельки", callback_data="main_wallets")
-    builder.button(text="🔔 Безопасность", callback_data="main_security")
-    builder.button(text="💙 Рефералы", callback_data="main_ref")
-    builder.button(text="🔹 Канал", url="https://t.me/Playerok")
-    builder.button(text="💬 Поддержка", callback_data="main_support")
-    builder.button(text="🔹 Язык", callback_data="main_lang")
-    builder.adjust(1, 2, 2, 2)
+    builder.adjust(1)
     return builder.as_markup()
 
 @dp.message(CommandStart())
@@ -54,7 +42,7 @@ async def to_main_menu(call: types.CallbackQuery, state: FSMContext):
 
 @dp.callback_query(F.data == "main_create")
 async def create_order(call: types.CallbackQuery, state: FSMContext):
-    text = "🟢 **Создание ордера**\n\n> *Выберите способ оплаты со стороны покупателя*"
+    text = "🔒 **Создание ордера**\n\n> *Выберите способ оплаты со стороны покупателя*"
     builder = InlineKeyboardBuilder()
     builder.button(text="🔹 TON", callback_data="method_ton")
     builder.button(text="🔹 USDT (TON)", callback_data="method_usdt")
@@ -72,14 +60,12 @@ async def method_ton(call: types.CallbackQuery):
     builder.button(text="◀️ Назад", callback_data="main_create")
     await call.message.edit_caption(caption=text, reply_markup=builder.as_markup(), parse_mode="Markdown")
 
-@dp.callback_query(F.data == "method_card")
-@dp.callback_query(F.data == "method_usdt")
+@dp.callback_query(F.data.in_(["method_card", "method_usdt"]))
 async def choose_currency(call: types.CallbackQuery, state: FSMContext):
     text = "💳 **Валюта ордера**\n\n> *Выберите валюту*"
     builder = InlineKeyboardBuilder()
-    currencies = ["RUB", "USD", "EUR", "UAH", "KZT", "BYN", "UZS"]
-    for cur in currencies:
-        builder.button(text=cur, callback_data=f"cur_{cur}")
+    for cur in ["RUB", "USD", "EUR", "UAH", "KZT", "BYN", "UZS"]:
+        builder.button(text=cur, callback_data=f"final_currency")
     builder.button(text="◀️ Назад", callback_data="main_create")
     builder.adjust(2, 2, 2, 1, 1)
     await call.message.edit_caption(caption=text, reply_markup=builder.as_markup(), parse_mode="Markdown")
