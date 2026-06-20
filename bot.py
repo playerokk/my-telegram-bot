@@ -13,23 +13,10 @@ BANNER_URL = "https://i.imgur.com/vHExT2V.png"
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-class RequisitesUpdate(StatesGroup):
-    entering_card = State()
-
-def init_db():
-    conn = sqlite3.connect("database.db")
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            user_id INTEGER PRIMARY KEY,
-            username TEXT,
-            balance REAL DEFAULT 0.0,
-            deals_count INTEGER DEFAULT 0,
-            card_requisites TEXT DEFAULT 'Не указаны'
-        )
-    """)
-    conn.commit()
-    conn.close()
+class OrderStates(StatesGroup):
+    choosing_method = State()
+    choosing_currency = State()
+    entering_data = State()
 
 def get_main_caption():
     return (
@@ -58,12 +45,6 @@ def get_playerok_menu():
 
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message):
-    conn = sqlite3.connect("database.db")
-    cursor = conn.cursor()
-    cursor.execute("INSERT OR IGNORE INTO users (user_id, username) VALUES (?, ?)", 
-                   (message.from_user.id, message.from_user.username))
-    conn.commit()
-    conn.close()
     await message.answer_photo(photo=BANNER_URL, caption=get_main_caption(), reply_markup=get_playerok_menu(), parse_mode="Markdown")
 
 @dp.callback_query(F.data == "to_main_menu")
@@ -71,46 +52,49 @@ async def to_main_menu(call: types.CallbackQuery, state: FSMContext):
     await state.clear()
     await call.message.edit_caption(caption=get_main_caption(), reply_markup=get_playerok_menu(), parse_mode="Markdown")
 
-@dp.callback_query(F.data == "main_wallets")
-async def press_wallets(call: types.CallbackQuery, state: FSMContext):
-    conn = sqlite3.connect("database.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT card_requisites FROM users WHERE user_id = ?", (call.from_user.id,))
-    row = cursor.fetchone()
-    conn.close()
-    current_req = row[0] if row else "Не указаны"
-
-    text = (
-        f"💳 **Реквизиты карты / СБП**\n\n"
-        f"> Текущие: {current_req}\n\n"
-        f"📝 **Отправьте реквизиты:**\n"
-        f"• *Для рублей РФ — укажите СБП и банк*\n"
-        f"• *Для других валют — номер карты*\n\n"
-        f"> **Примеры:**\n"
-        f"> СБП ТБанк — +7 912 345-67-89\n"
-        f"> Карта — 5536 9141 2847 3956"
-    )
+@dp.callback_query(F.data == "main_create")
+async def create_order(call: types.CallbackQuery, state: FSMContext):
+    text = "🟢 **Создание ордера**\n\n> *Выберите способ оплаты со стороны покупателя*"
     builder = InlineKeyboardBuilder()
+    builder.button(text="🔹 TON", callback_data="method_ton")
+    builder.button(text="🔹 USDT (TON)", callback_data="method_usdt")
+    builder.button(text="💳 Карта/СБП", callback_data="method_card")
+    builder.button(text="🆕 Звёзды", callback_data="method_stars")
     builder.button(text="◀️ В меню", callback_data="to_main_menu")
-    
+    builder.adjust(2, 2, 1)
     await call.message.edit_caption(caption=text, reply_markup=builder.as_markup(), parse_mode="Markdown")
-    await state.set_state(RequisitesUpdate.entering_card)
+    await state.set_state(OrderStates.choosing_method)
 
-@dp.message(RequisitesUpdate.entering_card)
-async def process_entering_card(message: types.Message, state: FSMContext):
-    new_req = message.text
-    conn = sqlite3.connect("database.db")
-    cursor = conn.cursor()
-    cursor.execute("UPDATE users SET card_requisites = ? WHERE user_id = ?", (new_req, message.from_user.id))
-    conn.commit()
-    conn.close()
-    await state.clear()
-    await message.answer("✅ **Реквизиты обновлены**")
-    await message.answer_photo(photo=BANNER_URL, caption=get_main_caption(), reply_markup=get_playerok_menu(), parse_mode="Markdown")
+@dp.callback_query(F.data == "method_ton")
+async def method_ton(call: types.CallbackQuery):
+    text = "⚠️ **TON-кошелёк не привязан**\n\n*Добавьте его в разделе «Кошельки»*"
+    builder = InlineKeyboardBuilder()
+    builder.button(text="◀️ Назад", callback_data="main_create")
+    await call.message.edit_caption(caption=text, reply_markup=builder.as_markup(), parse_mode="Markdown")
+
+@dp.callback_query(F.data == "method_card")
+@dp.callback_query(F.data == "method_usdt")
+async def choose_currency(call: types.CallbackQuery, state: FSMContext):
+    text = "💳 **Валюта ордера**\n\n> *Выберите валюту*"
+    builder = InlineKeyboardBuilder()
+    currencies = ["RUB", "USD", "EUR", "UAH", "KZT", "BYN", "UZS"]
+    for cur in currencies:
+        builder.button(text=cur, callback_data=f"cur_{cur}")
+    builder.button(text="◀️ Назад", callback_data="main_create")
+    builder.adjust(2, 2, 2, 1, 1)
+    await call.message.edit_caption(caption=text, reply_markup=builder.as_markup(), parse_mode="Markdown")
+    await state.set_state(OrderStates.choosing_currency)
+
+@dp.callback_query(F.data == "method_stars")
+async def method_stars(call: types.CallbackQuery, state: FSMContext):
+    text = "⭐ **Получатель звёзд**\n\n*Укажите @username получателя*\n\n> *Минимум: 100 звёзд*"
+    builder = InlineKeyboardBuilder()
+    builder.button(text="◀️ Назад", callback_data="main_create")
+    await call.message.edit_caption(caption=text, reply_markup=builder.as_markup(), parse_mode="Markdown")
+    await state.set_state(OrderStates.entering_data)
 
 async def main():
     logging.basicConfig(level=logging.INFO)
-    init_db()
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
