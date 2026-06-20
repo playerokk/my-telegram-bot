@@ -7,7 +7,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
-TOKEN = "8802204413:AAFd6Y8obiROqD3DZ_H0XsAD3ynR8zcjDZ4"
+TOKEN = "8802204413:AAHR3Pv8p9fitrRbqDInANi5NJ4l3hraSiw"
 BANNER_URL = "https://i.imgur.com/vHExT2V.png" 
 
 bot = Bot(token=TOKEN)
