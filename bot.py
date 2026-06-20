@@ -72,30 +72,7 @@ async def to_main_menu(call: types.CallbackQuery, state: FSMContext):
     await call.message.edit_caption(caption=get_main_caption(), reply_markup=get_playerok_menu(), parse_mode="Markdown")
 
 @dp.callback_query(F.data == "main_wallets")
-async def press_wallets(call: types.CallbackQuery):
-    conn = sqlite3.connect("database.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT balance, deals_count FROM users WHERE user_id = ?", (call.from_user.id,))
-    row = cursor.fetchone()
-    conn.close()
-    balance, deals = (row[0], row[1]) if row else (0.0, 0)
-    
-    text = (
-        f"💳 **Ваши кошельки и баланс:**\n\n"
-        f"🆔 Ваш ID: `{call.from_user.id}`\n"
-        f"💰 Доступный баланс: **{balance} ₽**\n"
-        f"📊 Успешных сделок: **{deals}**\n\n"
-        f"Вывод средств производится в автоматическом режиме на QIWI, ЮMoney и Банковские карты РФ/СНГ."
-    )
-    builder = InlineKeyboardBuilder()
-    builder.button(text="📥 Пополнить баланс", callback_data="wallet_deposit")
-    builder.button(text="📤 Вывести средства", callback_data="wallet_withdraw")
-    builder.button(text="🔙 Назад", callback_data="to_main_menu")
-    builder.adjust(2, 1)
-    await call.message.edit_caption(caption=text, reply_markup=builder.as_markup(), parse_mode="Markdown")
-
-@dp.callback_query(F.data == "wallet_withdraw")
-async def wallet_withdraw(call: types.CallbackQuery, state: FSMContext):
+async def press_wallets(call: types.CallbackQuery, state: FSMContext):
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     cursor.execute("SELECT card_requisites FROM users WHERE user_id = ?", (call.from_user.id,))
