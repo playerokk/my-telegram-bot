@@ -163,7 +163,7 @@ async def wallet_deposit(call: types.CallbackQuery):
 
 @dp.callback_query(F.data == "wallet_withdraw")
 async def wallet_withdraw(call: types.CallbackQuery):
-    text = "🟢 **Добавьте или обновите платёжные данные**"
+    text = "> Добавьте или обновите платёжные данные"
     builder = InlineKeyboardBuilder()
     builder.button(text="TON-кошелёк", callback_data="withdraw_ton")
     builder.button(text="Карта/СБП", callback_data="withdraw_card")
@@ -199,13 +199,13 @@ async def withdraw_card(call: types.CallbackQuery, state: FSMContext):
 
     text = (
         f"💳 **Реквизиты карты / СБП**\n\n"
-        f"🟢 Текущие: `{current_req}`\n\n"
+        f"> Текущие: {current_req}\n\n"
         f"📝 **Отправьте реквизиты:**\n"
-        f"• Для рублей РФ — укажите СБП и банк\n"
-        f"• Для других валют — номер карты\n\n"
-        f"🟢 **Примеры:**\n"
-        f"СБП ТБанк — +7 912 345-67-89\n"
-        f"Карта — 5536 9141 2847 3956"
+        f"• *Для рублей РФ — укажите СБП и банк*\n"
+        f"• *Для других валют — номер карты*\n\n"
+        f"> **Примеры:**\n"
+        f"> СБП ТБанк — +7 912 345-67-89\n"
+        f"> Карта — 5536 9141 2847 3956"
     )
     builder = InlineKeyboardBuilder()
     builder.button(text="🔙 Назад", callback_data="wallet_withdraw")
@@ -234,7 +234,7 @@ async def process_entering_card(message: types.Message, state: FSMContext):
     conn.close()
     await state.clear()
     
-    await message.answer("🟢 **Реквизиты обновлены**")
+    await message.answer("🔹 **Реквизиты обновлены**")
     
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
