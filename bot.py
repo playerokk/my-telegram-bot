@@ -7,7 +7,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
-TOKEN = "8802204413:AAEVACJFMw-Rw6KUQrFQkHKcnIQeT2IiduI"
+TOKEN = "8802204413:AAF2gvelPL6PW3kfROvMcNailqX3sx0GrgI"
 BANNER_URL = "https://i.imgur.com/vHExT2V.png" 
 
 bot = Bot(token=TOKEN)
@@ -21,7 +21,8 @@ def init_db():
             user_id INTEGER PRIMARY KEY,
             username TEXT,
             balance REAL DEFAULT 0.0,
-            deals_count INTEGER DEFAULT 0
+            deals_count INTEGER DEFAULT 0,
+            card_requisites TEXT DEFAULT 'Не указаны'
         )
     """)
     cursor.execute("""
@@ -41,6 +42,9 @@ class OrderCreation(StatesGroup):
     entering_amount = State()
     entering_description = State()
     entering_second_user = State()
+
+class RequisitesUpdate(StatesGroup):
+    entering_card = State()
 
 def get_main_caption():
     return (
@@ -123,10 +127,87 @@ async def press_wallets(call: types.CallbackQuery):
     await call.message.edit_caption(caption=text, reply_markup=builder.as_markup(), parse_mode="Markdown")
     await call.answer()
 
-@dp.callback_query(F.data.startswith("wallet_"))
-async def wallet_actions(call: types.CallbackQuery):
-    action = "Пополнение баланса" if call.data == "wallet_deposit" else "Вывод средств"
-    await call.answer(f"⚠️ {action} временно недоступно. Обратитесь в поддержку.", show_alert=True)
+@dp.callback_query(F.data == "wallet_deposit")
+async def wallet_deposit(call: types.CallbackQuery):
+    await call.answer("⚠️ Пополнение баланса временно недоступно.", show_alert=True)
+
+@dp.callback_query(F.data == "wallet_withdraw")
+async def wallet_withdraw(call: types.CallbackQuery):
+    text = "🟢 **Добавьте или обновите платёжные данные**"
+    builder = InlineKeyboardBuilder()
+    builder.button(text="TON-кошелёк", callback_data="withdraw_ton")
+    builder.button(text="Карта/СБП", callback_data="withdraw_card")
+    builder.button(text="◀️ В меню", callback_data="to_main_menu")
+    builder.adjust(2, 1)
+    await call.message.edit_caption(caption=text, reply_markup=builder.as_markup(), parse_mode="Markdown")
+    await call.answer()
+
+@dp.callback_query(F.data == "withdraw_ton")
+async def withdraw_ton(call: types.CallbackQuery):
+    await call.answer("⚠️ Подключение TON-кошелька временно недоступно.", show_alert=True)
+
+@dp.callback_query(F.data == "withdraw_card")
+async def withdraw_card(call: types.CallbackQuery, state: FSMContext):
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT card_requisites FROM users WHERE user_id = ?", (call.from_user.id,))
+    row = cursor.fetchone()
+    conn.close()
+    current_req = row[0] if row else "Не указаны"
+
+    text = (
+        "💳 **Реквизиты карты / СБП**\n\n"
+        f"🟢 Текущие: `{current_req}`\n\n"
+        "📝 **Отправьте реквизиты:**\n"
+        "• *Для рублей РФ — укажите СБП и банк*\n"
+        "• *Для других валют — номер карты*\n\n"
+        "🟢 **Примеры:**\n"
+        "СБП ТБанк — +7 912 345-67-89\n"
+        "Карта — 5536 9141 2847 3956"
+    )
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🔙 Назад", callback_data="wallet_withdraw")
+    
+    await call.message.edit_caption(caption=text, reply_markup=builder.as_markup(), parse_mode="Markdown")
+    await state.set_state(RequisitesUpdate.entering_card)
+    await call.answer()
+
+@dp.message(RequisitesUpdate.entering_card)
+async def process_entering_card(message: types.Message, state: FSMContext):
+    new_req = message.text
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET card_requisites = ? WHERE user_id = ?", (new_req, message.from_user.id))
+    conn.commit()
+    conn.close()
+    await state.clear()
+    
+    await message.answer("🟢 **Реквизиты обновлены**")
+    
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT balance, deals_count FROM users WHERE user_id = ?", (message.from_user.id,))
+    row = cursor.fetchone()
+    conn.close()
+    balance, deals = (row[0], row[1]) if row else (0.0, 0)
+    
+    text = (
+        f"💳 **Ваши кошельки и баланс:**\n\n"
+        f"🆔 Ваш ID: `{message.from_user.id}`\n"
+        f"💰 Доступный баланс: **{balance} ₽**\n"
+        f"📊 Успешных сделок: **{deals}**\n\n"
+        f"Вывод средств производится в автоматическом режиме на QIWI, ЮMoney и Банковские карты РФ/СНГ."
+    )
+    builder = InlineKeyboardBuilder()
+    builder.button(text="📥 Пополнить баланс", callback_data="wallet_deposit")
+    builder.button(text="📤 Вывести средства", callback_data="wallet_withdraw")
+    builder.button(text="🔙 Назад", callback_data="to_main_menu")
+    builder.adjust(2, 1)
+    
+    try:
+        await message.answer_photo(photo=BANNER_URL, caption=text, reply_markup=builder.as_markup(), parse_mode="Markdown")
+    except Exception:
+        await message.answer(text, reply_markup=builder.as_markup(), parse_mode="Markdown")
 
 @dp.callback_query(F.data == "main_security")
 async def press_security(call: types.CallbackQuery):
