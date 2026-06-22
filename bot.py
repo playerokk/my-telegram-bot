@@ -3,7 +3,7 @@ import asyncio
 import random
 import string
 from aiogram import Bot, Dispatcher, types, F
-from aiogram.filters import Command, CommandStart
+from aiogram.filters import CommandStart
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
@@ -21,7 +21,7 @@ ORDERS_DB = {}
 
 class OrderStates(StatesGroup):
     waiting_for_username = State()
-    waiting_for_stars = State()
+    waiting_for_amount = State()
     waiting_for_description = State()
 
 def generate_order_id():
@@ -82,7 +82,8 @@ async def cmd_start(message: types.Message, state: FSMContext):
 
             seller_username = order["seller_username"]
             seller_id = order["seller_id"]
-            stars = order["stars"]
+            amount = order["amount"]
+            payment_method = order["payment_method"]
             desc = order["description"]
             
             buyer_text = (
@@ -90,8 +91,8 @@ async def cmd_start(message: types.Message, state: FSMContext):
                 f"👑 **Продавец:** @{seller_username} (ID `{seller_id}`)\n\n"
                 f"📊 **Успешных ордеров:** 0\n\n"
                 f"🛍️ **Вы покупаете:**\n{desc}\n\n"
-                f"💵 **Цена:** {stars} звёзд\n\n"
-                f"⭐ **Оплата из баланса звёзд Telegram**"
+                f"💵 **Цена:** {amount} {payment_method}\n\n"
+                f"⭐ **Оплата из баланса {payment_method}**"
             )
             
             kb = InlineKeyboardBuilder()
@@ -157,23 +158,39 @@ async def view_lang(callback: types.CallbackQuery):
     await callback.answer("Выбран русский язык.", show_alert=True)
 
 @dp.callback_query(F.data == "btn_create_order")
+async def choose_currency(callback: types.CallbackQuery):
+    kb = InlineKeyboardBuilder()
+    currencies = ["🇷🇺 RUB", "🇺🇸 USD", "🇪🇺 EUR", "🇺🇦 UAH", "🇰🇿 KZT", "🇧🇾 BYN", "🇺🇿 UZS"]
+    for i in range(0, len(currencies), 2):
+        if i+1 < len(currencies):
+            kb.row(types.InlineKeyboardButton(text=currencies[i], callback_data="flow_curr_select"),
+                   types.InlineKeyboardButton(text=currencies[i+1], callback_data="flow_curr_select"))
+        else:
+            kb.row(types.InlineKeyboardButton(text=currencies[i], callback_data="flow_curr_select"))
+    kb.row(types.InlineKeyboardButton(text="◀️ Назад", callback_data="to_main"))
+    await callback.message.edit_text("💳 **Валюта ордера**\n\n_Выберите валюту_ 💬", parse_mode="Markdown", reply_markup=kb.as_markup())
+
+@dp.callback_query(F.data == "flow_curr_select")
 async def choose_payment_method(callback: types.CallbackQuery):
     kb = InlineKeyboardBuilder()
     kb.row(
-        types.InlineKeyboardButton(text="📱 TON", callback_data="flow_pay_stars"),
-        types.InlineKeyboardButton(text="📱 USDT (TON)", callback_data="flow_pay_stars")
+        types.InlineKeyboardButton(text="📱 TON", callback_data="flow_pay_TON"),
+        types.InlineKeyboardButton(text="📱 USDT (TON)", callback_data="flow_pay_USDT")
     )
     kb.row(
-        types.InlineKeyboardButton(text="💳 Карта/СБП", callback_data="flow_pay_stars"),
-        types.InlineKeyboardButton(text="🆕 Звёзды", callback_data="flow_pay_stars")
+        types.InlineKeyboardButton(text="💳 Карта/СБП", callback_data="flow_pay_RUB"),
+        types.InlineKeyboardButton(text="🆕 Звёзды", callback_data="flow_pay_STARS")
     )
     kb.row(types.InlineKeyboardButton(text="◀️ В меню", callback_data="to_main"))
     await callback.message.edit_text("🔒 **Создание ордера**\n\n_Выберите способ оплаты со стороны покупателя_", parse_mode="Markdown", reply_markup=kb.as_markup())
 
-@dp.callback_query(F.data == "flow_pay_stars")
+@dp.callback_query(F.data.startswith("flow_pay_"))
 async def ask_recipient_username(callback: types.CallbackQuery, state: FSMContext):
+    pay_method = callback.data.split("_")[2]
+    await state.update_data(payment_method=pay_method)
+    
     await callback.message.edit_text(
-        "⭐️ **Получатель звёзд**\n\nУкажите `@username` получателя\n\n🛑 Минимум: **100 звёзд** 💬",
+        f"⭐️ **Получатель [{pay_method}]**\n\nУкажите `@username` получателя\n\n🛑 Введите корректное значение 💬",
         parse_mode="Markdown",
         reply_markup=back_to_menu_kb()
     )
@@ -184,28 +201,33 @@ async def process_recipient_username(message: types.Message, state: FSMContext):
     username = message.text.strip().replace("@", "")
     await state.update_data(recipient=username)
     
+    user_data = await state.get_data()
+    pay_method = user_data.get("payment_method", "STARS")
+    
     await message.answer(
-        f"👤 @{username}\n⭐️ **Введите количество звёзд.**",
+        f"👤 @{username}\n💰 **Введите сумму сделки ({pay_method}).**",
         reply_markup=InlineKeyboardBuilder().row(types.InlineKeyboardButton(text="◀️ В меню", callback_data="to_main")).as_markup()
     )
-    await state.set_state(OrderStates.waiting_for_stars)
+    await state.set_state(OrderStates.waiting_for_amount)
 
-@dp.message(OrderStates.waiting_for_stars)
-async def process_stars_amount(message: types.Message, state: FSMContext):
-    if not message.text.isdigit() or int(message.text) < 100:
-        return await message.answer("❌ Пожалуйста, введите корректное число звёзд (минимум 100).")
-    
-    await state.update_data(stars=int(message.text))
+@dp.message(OrderStates.waiting_for_amount)
+async def process_amount(message: types.Message, state: FSMContext):
+    try:
+        amount = float(message.text.strip().replace(",", "."))
+        if amount <= 0:
+            raise ValueError
+    except ValueError:
+        return await message.answer("❌ Пожалуйста, введите корректное положительное число.")
+        
+    await state.update_data(amount=amount)
     
     desc_text = (
         "📝 **Описание товара**\n\n"
         "_Опишите, что вы продаёте._ 💬\n\n"
         "**Если это NFT-подарок:**\n"
-        "Зайдите в свой профиль Telegram → нажмите на подарок → три точки (...) → «Скопировать ссылку».\n\n"
-        "Вставьте ссылку сюда. Если подарков несколько — каждую ссылку с новой строки.\n\n"
+        "Вставьте ссылку ниже.\n\n"
         "**Пример:**\n"
-        "`https://t.me/nft/PlushPepe-1`\n\n"
-        "_Или просто опишите товар:_ 2 Кристалла и 1 Бабочка"
+        "`https://t.me/nft/PlushPepe-1`"
     )
     await message.answer(desc_text, parse_mode="Markdown", reply_markup=InlineKeyboardBuilder().row(types.InlineKeyboardButton(text="◀️ В меню", callback_data="to_main")).as_markup())
     await state.set_state(OrderStates.waiting_for_description)
@@ -216,21 +238,24 @@ async def finalize_order(message: types.Message, state: FSMContext):
     order_id = generate_order_id()
     bot_info = await bot.get_me()
     
+    description_text = message.text if message.text else "Без описания"
+    
     ORDERS_DB[order_id] = {
         "seller_id": message.from_user.id,
         "seller_username": message.from_user.username or "seller",
         "recipient": user_data["recipient"],
-        "stars": user_data["stars"],
-        "description": message.text
+        "amount": user_data["amount"],
+        "payment_method": user_data["payment_method"],
+        "description": description_text
     }
     
     buyer_link = f"https://t.me/{bot_info.username}?start={order_id[1:]}"
     
     result_text = (
-        f"📝 **{user_data['description']}**\n\n"
+        f"📝 **{description_text}**\n\n"
         f"💬 **Ордер создан** 💬\n\n"
-        f"💰 **Сумма:** {user_data['stars']} STARS 💬\n\n"
-        f"📝 **Описание:** {user_data['description']}\n\n"
+        f"💰 **Сумма:** {user_data['amount']} {user_data['payment_method']} 💬\n\n"
+        f"📝 **Описание:** {description_text}\n\n"
         f"⚡️ **Ссылка для покупателя:**\n"
         f"`{buyer_link}`\n\n"
         f"⭐️ **Важно:** передача подарка выполняется 💬 через менеджера @GGSEL_Escrow_Support"
@@ -251,13 +276,14 @@ async def process_buyer_payment(callback: types.CallbackQuery):
         return await callback.answer("Ордер устарел или был удален.", show_alert=True)
         
     order = ORDERS_DB[order_id]
-    stars = order["stars"]
+    amount = order["amount"]
+    payment_method = order["payment_method"]
     
     await callback.message.edit_text("⏳ **Загрузка...**", parse_mode="Markdown")
     await asyncio.sleep(1.5)
     
     success_buyer_text = (
-        f"⭐️ **{stars} звезд успешно списано с вашего баланса** 💬\n\n"
+        f"⭐️ **{amount} {payment_method} успешно списано с вашего баланса** 💬\n\n"
         f"Ордер `{order_id}` оплачен 💬"
     )
     kb = InlineKeyboardBuilder().row(types.InlineKeyboardButton(text="◀️ В меню", callback_data="to_main")).as_markup()
@@ -266,7 +292,7 @@ async def process_buyer_payment(callback: types.CallbackQuery):
     try:
         success_seller_text = (
             f"🔔 **Оплата по ордеру {order_id} учтена!**\n\n"
-            f"Покупатель совершил транзакцию на сумму **{stars} STARS**.\n"
+            f"Покупатель совершил транзакцию на сумму **{amount} {payment_method}**.\n"
             f"Средства заморожены на балансе гаранта. Для завершения сделки свяжитесь с поддержкой."
         )
         await bot.send_message(chat_id=order["seller_id"], text=success_seller_text, parse_mode="Markdown")
