@@ -119,7 +119,7 @@ async def back_to_main(callback: types.CallbackQuery, state: FSMContext):
     await state.clear()
     welcome_text = (
         "**Добро пожаловать 👋**\n\n"
-        "🔷 **GGSEL Escrow** — специализированный сервис по обеспечение безопасности внебиржевых сделок.\n\n"
+        "🔷 **GGSEL Escrow** — специализированный сервис по обеспечению безопасности внебиржевых сделок.\n\n"
         "🛡️ **Выберите нужный раздел ниже:**"
     )
     await callback.message.edit_text(welcome_text, parse_mode="Markdown", reply_markup=main_menu_kb())
@@ -157,15 +157,6 @@ async def view_lang(callback: types.CallbackQuery):
     await callback.answer("Выбран русский язык.", show_alert=True)
 
 @dp.callback_query(F.data == "btn_create_order")
-async def start_order_flow(callback: types.CallbackQuery):
-    kb = InlineKeyboardBuilder()
-    kb.row(
-        types.InlineKeyboardButton(text="🇷🇺 Русский", callback_data="flow_lang_ru"),
-        types.InlineKeyboardButton(text="🇬🇧 English", callback_data="flow_lang_en")
-    )
-    await callback.message.edit_text("🎮 **Choose language / Выберите язык**", reply_markup=kb.as_markup())
-
-@dp.callback_query(F.data.startswith("flow_lang_"))
 async def choose_currency(callback: types.CallbackQuery):
     kb = InlineKeyboardBuilder()
     currencies = ["🇷🇺 RUB", "🇺🇸 USD", "🇪🇺 EUR", "🇺🇦 UAH", "🇰🇿 KZT", "🇧🇾 BYN", "🇺🇿 UZS"]
@@ -175,7 +166,7 @@ async def choose_currency(callback: types.CallbackQuery):
                    types.InlineKeyboardButton(text=currencies[i+1], callback_data="flow_curr_select"))
         else:
             kb.row(types.InlineKeyboardButton(text=currencies[i], callback_data="flow_curr_select"))
-    kb.row(types.InlineKeyboardButton(text="◀️ Назад", callback_data="btn_create_order"))
+    kb.row(types.InlineKeyboardButton(text="◀️ Назад", callback_data="to_main"))
     await callback.message.edit_text("💳 **Валюта ордера**\n\n_Выберите валюту_ 💬", parse_mode="Markdown", reply_markup=kb.as_markup())
 
 @dp.callback_query(F.data == "flow_curr_select")
