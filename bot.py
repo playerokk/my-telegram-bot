@@ -157,19 +157,6 @@ async def view_lang(callback: types.CallbackQuery):
     await callback.answer("Выбран русский язык.", show_alert=True)
 
 @dp.callback_query(F.data == "btn_create_order")
-async def choose_currency(callback: types.CallbackQuery):
-    kb = InlineKeyboardBuilder()
-    currencies = ["🇷🇺 RUB", "🇺🇸 USD", "🇪🇺 EUR", "🇺🇦 UAH", "🇰🇿 KZT", "🇧🇾 BYN", "🇺🇿 UZS"]
-    for i in range(0, len(currencies), 2):
-        if i+1 < len(currencies):
-            kb.row(types.InlineKeyboardButton(text=currencies[i], callback_data="flow_curr_select"),
-                   types.InlineKeyboardButton(text=currencies[i+1], callback_data="flow_curr_select"))
-        else:
-            kb.row(types.InlineKeyboardButton(text=currencies[i], callback_data="flow_curr_select"))
-    kb.row(types.InlineKeyboardButton(text="◀️ Назад", callback_data="to_main"))
-    await callback.message.edit_text("💳 **Валюта ордера**\n\n_Выберите валюту_ 💬", parse_mode="Markdown", reply_markup=kb.as_markup())
-
-@dp.callback_query(F.data == "flow_curr_select")
 async def choose_payment_method(callback: types.CallbackQuery):
     kb = InlineKeyboardBuilder()
     kb.row(
