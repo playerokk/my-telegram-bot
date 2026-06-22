@@ -11,27 +11,21 @@ from aiogram.fsm.storage.memory import MemoryStorage
 
 logging.basicConfig(level=logging.INFO)
 
-# Укажи токен своего бота и ID админа (для получения уведомлений о логах)
 BOT_TOKEN = "ТВОЙ_ТОКЕН_БОТА"
-ADMIN_ID = 123456789  # Замени на свой Telegram ID цифрами
+ADMIN_ID = 123456789  
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
-# Временная база данных в оперативной памяти для хранения ордеров
 ORDERS_DB = {}
 
-# Состояния для пошагового создания ордера (FSM)
 class OrderStates(StatesGroup):
     waiting_for_username = State()
     waiting_for_stars = State()
     waiting_for_description = State()
 
-# Генератор случайного ID ордера
 def generate_order_id():
     return "#" + "".join(random.choices(string.ascii_lowercase + string.digits, k=9))
-
-# --- ГЛАВНЫЕ КЛАВИАТУРЫ ---
 
 def main_menu_kb():
     builder = InlineKeyboardBuilder()
@@ -56,14 +50,11 @@ def back_to_menu_kb():
 def in_menu_kb():
     return InlineKeyboardBuilder().row(types.InlineKeyboardButton(text="◀️ В меню", callback_data="to_main")).as_markup()
 
-# --- ХЕНДЛЕРЫ КОМАНДЫ /START ---
-
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message, state: FSMContext):
     await state.clear()
     args = message.text.split()
     
-    # Если в старт передан ID ордера (Покупатель перешел по ссылке)
     if len(args) > 1:
         order_id = args[1]
         if not order_id.startswith("#"):
@@ -72,13 +63,11 @@ async def cmd_start(message: types.Message, state: FSMContext):
         if order_id in ORDERS_DB:
             order = ORDERS_DB[order_id]
             
-            # Защита: продавец не может войти в свой ордер
             if order["seller_id"] == message.from_user.id:
                 kb = InlineKeyboardBuilder().row(types.InlineKeyboardButton(text="◀️ В меню", callback_data="to_main")).as_markup()
                 await message.answer("❌ **Нельзя подключиться к своему ордеру**", parse_mode="Markdown", reply_markup=kb)
                 return
 
-            # Отправляем уведомление продавцу (админу) о подключении покупателя
             try:
                 buyer_info = f"@{message.from_user.username}" if message.from_user.username else "Без юзернейма"
                 log_text = (
@@ -86,13 +75,11 @@ async def cmd_start(message: types.Message, state: FSMContext):
                     f"{buyer_info} (ID `{message.from_user.id}`)"
                 )
                 await bot.send_message(chat_id=order["seller_id"], text=log_text, parse_mode="Markdown")
-                # Дублируем главному админу
                 if order["seller_id"] != ADMIN_ID:
                     await bot.send_message(chat_id=ADMIN_ID, text=f"LOG: Пользователь {buyer_info} зашел в ордер {order_id}")
             except Exception as e:
                 logging.error(f"Ошибка отправки лога: {e}")
 
-            # Отображаем карточку товара покупателю
             seller_username = order["seller_username"]
             seller_id = order["seller_id"]
             stars = order["stars"]
@@ -114,7 +101,6 @@ async def cmd_start(message: types.Message, state: FSMContext):
             await message.answer("❌ **Ордер не найден или был отменен.**", reply_markup=main_menu_kb())
             return
 
-    # Главное меню для обычного запуска
     welcome_text = (
         "**Добро пожаловать 👋**\n\n"
         "🔷 **GGSEL Escrow** — специализированный сервис по обеспечению безопасности внебиржевых сделок.\n\n"
@@ -128,14 +114,12 @@ async def cmd_start(message: types.Message, state: FSMContext):
     )
     await message.answer(welcome_text, parse_mode="Markdown", reply_markup=main_menu_kb())
 
-# --- НАВИГАЦИЯ И СТАТИЧЕСКИЕ СТРАНИЦЫ ---
-
 @dp.callback_query(F.data == "to_main")
 async def back_to_main(callback: types.CallbackQuery, state: FSMContext):
     await state.clear()
     welcome_text = (
         "**Добро пожаловать 👋**\n\n"
-        "🔷 **GGSEL Escrow** — специализированный сервис по обеспечению безопасности внебиржевых сделок.\n\n"
+        "🔷 **GGSEL Escrow** — специализированный сервис по обеспечение безопасности внебиржевых сделок.\n\n"
         "🛡️ **Выберите нужный раздел ниже:**"
     )
     await callback.message.edit_text(welcome_text, parse_mode="Markdown", reply_markup=main_menu_kb())
@@ -171,8 +155,6 @@ async def view_referrals(callback: types.CallbackQuery):
 @dp.callback_query(F.data == "btn_lang")
 async def view_lang(callback: types.CallbackQuery):
     await callback.answer("Выбран русский язык.", show_alert=True)
-
-# --- ВОРОНКА СОЗДАНИЯ ОРДЕРА (ФЛОУ ИЗ СКРИНШОТОВ) ---
 
 @dp.callback_query(F.data == "btn_create_order")
 async def start_order_flow(callback: types.CallbackQuery):
@@ -256,7 +238,6 @@ async def finalize_order(message: types.Message, state: FSMContext):
     order_id = generate_order_id()
     bot_info = await bot.get_me()
     
-    # Сохраняем в реестр ордеров
     ORDERS_DB[order_id] = {
         "seller_id": message.from_user.id,
         "seller_username": message.from_user.username or "seller",
@@ -285,8 +266,6 @@ async def finalize_order(message: types.Message, state: FSMContext):
     await message.answer(result_text, parse_mode="Markdown", reply_markup=kb.as_markup())
     await state.clear()
 
-# --- СИМУЛЯЦИЯ ОПЛАТЫ ДЛЯ ПОКУПАТЕЛЯ ---
-
 @dp.callback_query(F.data.startswith("buy_pay_"))
 async def process_buyer_payment(callback: types.CallbackQuery):
     order_id = "#" + callback.data.split("_")[2]
@@ -296,11 +275,9 @@ async def process_buyer_payment(callback: types.CallbackQuery):
     order = ORDERS_DB[order_id]
     stars = order["stars"]
     
-    # Анимация загрузки
     await callback.message.edit_text("⏳ **Загрузка...**", parse_mode="Markdown")
     await asyncio.sleep(1.5)
     
-    # Квитанция об успешном списании звёзд для покупателя
     success_buyer_text = (
         f"⭐️ **{stars} звезд успешно списано с вашего баланса** 💬\n\n"
         f"Ордер `{order_id}` оплачен 💬"
@@ -308,7 +285,6 @@ async def process_buyer_payment(callback: types.CallbackQuery):
     kb = InlineKeyboardBuilder().row(types.InlineKeyboardButton(text="◀️ В меню", callback_data="to_main")).as_markup()
     await callback.message.answer(success_buyer_text, parse_mode="Markdown", reply_markup=kb)
     
-    # Отправка лога продавцу о том, что покупатель нажал оплатить
     try:
         success_seller_text = (
             f"🔔 **Оплата по ордеру {order_id} учтена!**\n\n"
@@ -319,7 +295,6 @@ async def process_buyer_payment(callback: types.CallbackQuery):
     except Exception as e:
         logging.error(f"Не удалось отправить лог успешной оплаты: {e}")
 
-# Запуск пуллинга
 async def main():
     await dp.start_polling(bot)
 
