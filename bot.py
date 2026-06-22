@@ -11,14 +11,12 @@ from aiogram.fsm.storage.memory import MemoryStorage
 
 logging.basicConfig(level=logging.INFO)
 
-# Укажи свои актуальные токены и ID
 BOT_TOKEN = "8802204413:AAHR3Pv8p9fitrRbqDInANi5NJ4l3hraSiw"
 ADMIN_ID = 123456789  
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
-# База данных ордеров в оперативной памяти
 ORDERS_DB = {}
 
 class OrderStates(StatesGroup):
@@ -57,7 +55,6 @@ async def cmd_start(message: types.Message, state: FSMContext):
     await state.clear()
     args = message.text.split()
     
-    # Если переход по реферальной ссылке (покупатель заходит в ордер)
     if len(args) > 1:
         order_id = args[1]
         if order_id in ORDERS_DB:
@@ -104,12 +101,11 @@ async def back_to_main(callback: types.CallbackQuery, state: FSMContext):
     await state.clear()
     welcome_text = (
         "**Добро пожаловать 👋**\n\n"
-        "🔷 **PlayerOk** — специализированный сервис по обеспечение безопасности внебиржевых сделок.\n\n"
+        "🔷 **PlayerOk** — специализированный сервис по обеспечению безопасности внебиржевых сделок.\n\n"
         "🛡️ **Выберите нужный раздел ниже:**"
     )
     await callback.message.edit_text(welcome_text, parse_mode="Markdown", reply_markup=main_menu_kb())
 
-# Сразу открываем создание ордера без лишних шагов выбора валют
 @dp.callback_query(F.data == "btn_create_order")
 async def choose_payment_method(callback: types.CallbackQuery):
     kb = InlineKeyboardBuilder()
@@ -172,7 +168,6 @@ async def process_amount(message: types.Message, state: FSMContext):
     await message.answer(desc_text, parse_mode="Markdown", reply_markup=in_menu_kb())
     await state.set_state(OrderStates.waiting_for_description)
 
-# Финал создания ордера. Исключены любые падения при вводе ссылок.
 @dp.message(OrderStates.waiting_for_description)
 async def finalize_order(message: types.Message, state: FSMContext):
     try:
@@ -185,7 +180,6 @@ async def finalize_order(message: types.Message, state: FSMContext):
         amount = user_data.get("amount", 100)
         recipient = user_data.get("recipient", "unknown")
         
-        # Сохранение в импровизированную БД
         ORDERS_DB[order_id] = {
             "seller_id": message.from_user.id,
             "seller_username": message.from_user.username or "Продавец",
@@ -213,8 +207,7 @@ async def finalize_order(message: types.Message, state: FSMContext):
         
         await message.answer(result_text, parse_mode="Markdown", reply_markup=kb.as_markup())
     except Exception as e:
-        logging.error(f"Критическая ошибка создания ордера: {e}")
-        await message.answer("❌ Произошла ошибка при обработке ссылки. Попробуйте еще раз.", reply_markup=main_menu_kb())
+        logging.error(f"Ошибка: {e}")
     finally:
         await state.clear()
 
